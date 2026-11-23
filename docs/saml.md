@@ -11,7 +11,9 @@ separately managed Keycloak installation can also supply the SAML client.
 
 1. Verify email sign-in first. Keep an independent workspace owner who can
    sign in with email. Grant a trusted, existing local account access to the
-   Shelf instance admin dashboard from the NS8 host.
+   Shelf instance Admin Dashboard from **Settings → Shelf administration**.
+   Enter the account email address and select **Grant instance administrator**.
+   The NS8 host command is also available.
 
    ```sh
    runagent -m shelf1 shelf-admin grant owner@example.net

@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Grant Shelf instance administrator",
+  "type": "object",
+  "required": ["email"],
+  "additionalProperties": false,
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email",
+      "maxLength": 254,
+      "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+    }
+  }
+}

@@ -117,6 +117,9 @@
                     :label="$t('settings.allow_signup')"
                     :disabled="stillLoading"
                   />
+                  <p class="mg-bottom">
+                    {{ $t("settings.allow_signup_help") }}
+                  </p>
                   <cv-checkbox
                     v-model="saml"
                     :label="$t('settings.saml')"
@@ -171,9 +174,41 @@
               kind="primary"
               :icon="Save20"
               :loading="loading.configureModule"
-              :disabled="loading.getConfiguration || loading.configureModule"
+              :disabled="stillLoading"
               >{{ $t("settings.save") }}</NsButton
             >
+          </cv-form>
+        </cv-tile>
+      </cv-column>
+    </cv-row>
+    <cv-row v-if="shelfConfigured">
+      <cv-column>
+        <cv-tile light>
+          <cv-form @submit.prevent="grantShelfAdmin">
+            <h2 class="mg-bottom">{{ $t("settings.shelf_admin_title") }}</h2>
+            <p class="mg-bottom">{{ $t("settings.shelf_admin_help") }}</p>
+            <cv-text-input
+              v-model.trim="adminEmail"
+              :label="$t('settings.shelf_admin_email')"
+              type="email"
+              required
+              :disabled="stillLoading"
+              class="mg-bottom"
+            />
+            <NsInlineNotification
+              v-if="adminGrantMessage"
+              :kind="adminGrantKind"
+              :title="adminGrantMessage"
+              :showCloseButton="false"
+              class="mg-bottom"
+            />
+            <NsButton
+              kind="primary"
+              :disabled="stillLoading || !adminEmail"
+              :loading="loading.grantShelfAdmin"
+            >
+              {{ $t("action.grant-shelf-admin") }}
+            </NsButton>
           </cv-form>
         </cv-tile>
       </cv-column>
@@ -217,12 +252,18 @@ export default {
       maptilerToken: "",
       allowSignup: false,
       saml: false,
+      shelfConfigured: false,
+      adminEmail: "",
+      adminGrantMessage: "",
+      adminGrantKind: "",
+      adminGrantCleanup: null,
       isLetsEncryptEnabled: false,
       isLetsEncryptCurrentlyEnabled: false,
       isHttpToHttpsEnabled: true,
       loading: {
         getConfiguration: false,
         configureModule: false,
+        grantShelfAdmin: false,
         getStatus: false,
       },
       error: {
@@ -241,6 +282,7 @@ export default {
       return (
         this.loading.getConfiguration ||
         this.loading.configureModule ||
+        this.loading.grantShelfAdmin ||
         this.loading.getStatus
       );
     },
@@ -248,6 +290,11 @@ export default {
   created() {
     this.getConfiguration();
     this.getStatus();
+  },
+  beforeDestroy() {
+    if (this.adminGrantCleanup) {
+      this.adminGrantCleanup();
+    }
   },
   beforeRouteEnter(to, from, next) {
     next((vm) => {
@@ -350,6 +397,7 @@ export default {
     getConfigurationCompleted(taskContext, taskResult) {
       const config = taskResult.output;
       this.host = config.host;
+      this.shelfConfigured = Boolean(config.host);
       this.smtpFrom = config.smtp_from || "";
       this.maptilerToken = config.maptiler_token || "";
       this.allowSignup = config.allow_signup;
@@ -397,6 +445,9 @@ export default {
       }
     },
     async configureModule() {
+      if (this.loading.grantShelfAdmin) {
+        return;
+      }
       this.error.test_imap = false;
       this.error.test_smtp = false;
       const isValidationOk = this.validateConfigureModule();
@@ -459,6 +510,73 @@ export default {
       console.error(`${taskContext.action} aborted`, taskResult);
       this.error.configureModule = this.$t("error.generic_error");
       this.loading.configureModule = false;
+    },
+    async grantShelfAdmin() {
+      if (this.stillLoading || !this.adminEmail) {
+        return;
+      }
+
+      this.loading.grantShelfAdmin = true;
+      this.adminGrantMessage = "";
+      const action = "grant-shelf-admin";
+      const eventId = this.getUuid();
+      const root = this.core.$root;
+      const events = {
+        [`${action}-completed-${eventId}`]: (_, result) => {
+          const status = result.output && result.output.status;
+          const messages = {
+            granted: "shelf_admin_granted",
+            already_granted: "shelf_admin_already_granted",
+            no_eligible_account: "shelf_admin_no_eligible_account",
+          };
+          if (!messages[status]) {
+            showError(this.$t("error.generic_error"));
+            return;
+          }
+          this.adminGrantKind =
+            status === "no_eligible_account" ? "error" : "success";
+          this.adminGrantMessage = this.$t("settings." + messages[status]);
+          if (this.adminGrantKind === "success") {
+            this.adminEmail = "";
+          }
+          cleanup();
+        },
+        [`${action}-aborted-${eventId}`]: () =>
+          showError(this.$t("error.generic_error")),
+        [`${action}-validation-failed-${eventId}`]: () =>
+          showError(this.$t("settings.shelf_admin_invalid_email")),
+      };
+      const cleanup = () => {
+        Object.entries(events).forEach(([event, callback]) =>
+          root.$off(event, callback)
+        );
+        this.adminGrantCleanup = null;
+        this.loading.grantShelfAdmin = false;
+      };
+      const showError = (message) => {
+        this.adminGrantKind = "error";
+        this.adminGrantMessage = message;
+        cleanup();
+      };
+      this.adminGrantCleanup = cleanup;
+      Object.entries(events).forEach(([event, callback]) =>
+        root.$once(event, callback)
+      );
+
+      const [err] = await to(
+        this.createModuleTaskForApp(this.instanceName, {
+          action,
+          data: { email: this.adminEmail },
+          extra: {
+            title: this.$t("action.grant-shelf-admin"),
+            isNotificationHidden: true,
+            eventId,
+          },
+        })
+      );
+      if (err && this.adminGrantCleanup === cleanup) {
+        showError(this.getErrorMessage(err));
+      }
     },
     configureModuleCompleted() {
       this.loading.configureModule = false;
