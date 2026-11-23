@@ -1,0 +1,23 @@
+[Unit]
+Description=Shelf gateway
+BindsTo=shelf.service
+PartOf=shelf.service
+After=shelf.service shelf-auth.service shelf-rest.service shelf-storage.service
+Requires=shelf-auth.service shelf-rest.service shelf-storage.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%E/state/environment
+WorkingDirectory=%E/state
+Restart=on-failure
+TimeoutStartSec=240
+TimeoutStopSec=75
+ExecStart=/usr/bin/podman run --replace --name %N --pod shelf --sdnotify=conmon --cgroups=no-conmon \
+    --volume %E/etc/shelf-nginx.conf:/etc/nginx/nginx.conf:ro,Z \
+    --volume %E/etc/shelf-otp.html:/usr/share/nginx/html/otp.html:ro,Z \
+    ${NGINX_IMAGE}
+ExecStartPost=runagent shelf-buckets
+ExecStop=/usr/bin/podman stop --ignore -t 25 %N
+ExecStopPost=/usr/bin/podman rm --ignore -f %N

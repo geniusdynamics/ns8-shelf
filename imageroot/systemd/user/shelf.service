@@ -1,0 +1,20 @@
+[Unit]
+Description=Shelf pod
+Requires=shelf-db.service shelf-auth.service shelf-rest.service shelf-storage.service shelf-gateway.service shelf-web.service
+Before=shelf-db.service shelf-auth.service shelf-rest.service shelf-storage.service shelf-gateway.service shelf-web.service
+
+[Service]
+Type=forking
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%E/state/environment
+PIDFile=%t/shelf.pid
+Restart=on-failure
+ExecStartPre=runagent shelf-render
+ExecStartPre=/usr/bin/rm -f %t/shelf.pid
+ExecStartPre=/usr/bin/podman pod create --replace --name shelf --infra-conmon-pidfile %t/shelf.pid --shm-size=256m --publish 127.0.0.1:${TCP_PORT}:18080
+ExecStart=/usr/bin/podman pod start shelf
+ExecStop=/usr/bin/podman pod stop --ignore -t 25 shelf
+ExecStopPost=/usr/bin/podman pod rm --ignore -f shelf
+
+[Install]
+WantedBy=default.target

@@ -24,8 +24,8 @@
         <cv-tile light>
           <cv-form @submit.prevent="configureModule">
             <cv-text-input
-              :label="$t('settings.kickstart_fqdn')"
-              placeholder="kickstart.example.org"
+              :label="$t('settings.shelf_fqdn')"
+              placeholder="shelf.example.org"
               v-model.trim="host"
               class="mg-bottom"
               :invalid-message="$t(error.host)"
@@ -98,7 +98,25 @@
             <cv-accordion ref="accordion" class="maxwidth mg-bottom">
               <cv-accordion-item :open="toggleAccordion[0]">
                 <template slot="title">{{ $t("settings.advanced") }}</template>
-                <template slot="content"> </template>
+                <template slot="content">
+                  <cv-text-input
+                    v-model.trim="smtpFrom"
+                    :label="$t('settings.smtp_from')"
+                    type="email"
+                    :disabled="stillLoading"
+                    class="mg-bottom"
+                  />
+                  <cv-checkbox
+                    v-model="allowSignup"
+                    :label="$t('settings.allow_signup')"
+                    :disabled="stillLoading"
+                  />
+                  <cv-checkbox
+                    v-model="saml"
+                    :label="$t('settings.saml')"
+                    :disabled="stillLoading"
+                  />
+                </template>
               </cv-accordion-item>
             </cv-accordion>
             <cv-row v-if="error.configureModule">
@@ -189,6 +207,9 @@ export default {
       validationErrorDetails: [],
       urlCheckInterval: null,
       host: "",
+      smtpFrom: "",
+      allowSignup: false,
+      saml: false,
       isLetsEncryptEnabled: false,
       isLetsEncryptCurrentlyEnabled: false,
       isHttpToHttpsEnabled: true,
@@ -322,6 +343,9 @@ export default {
     getConfigurationCompleted(taskContext, taskResult) {
       const config = taskResult.output;
       this.host = config.host;
+      this.smtpFrom = config.smtp_from || "";
+      this.allowSignup = config.allow_signup;
+      this.saml = config.saml;
       this.isLetsEncryptEnabled = config.lets_encrypt;
       this.isLetsEncryptCurrentlyEnabled = config.lets_encrypt;
       this.isHttpToHttpsEnabled = config.http2https;
@@ -398,6 +422,9 @@ export default {
           action: taskAction,
           data: {
             host: this.host,
+            smtp_from: this.smtpFrom,
+            allow_signup: this.allowSignup,
+            saml: this.saml,
             lets_encrypt: this.isLetsEncryptEnabled,
             http2https: this.isHttpToHttpsEnabled,
           },

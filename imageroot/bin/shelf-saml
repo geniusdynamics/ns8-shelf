@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Manage Supabase SAML providers using the node-local gateway."""
+import argparse
+import json
+import os
+from pathlib import Path
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+from uuid import UUID
+
+from shelf import secrets_file, token
+
+parser = argparse.ArgumentParser(description=__doc__)
+commands = parser.add_subparsers(dest="command", required=True)
+commands.add_parser("list")
+for operation in ("add", "update"):
+    command = commands.add_parser(operation)
+    if operation == "update":
+        command.add_argument("provider", type=UUID)
+    command.add_argument("metadata", type=Path)
+    command.add_argument("domains", nargs="+", help="Email domains served by the IdP")
+    command.add_argument("--attributes", type=Path, help="Optional Supabase attribute mapping JSON")
+args = parser.parse_args()
+if os.getenv("SHELF_SAML") != "True":
+    raise SystemExit("Enable SAML in the NS8 module settings first.")
+path = "/auth/v1/admin/sso/providers"
+body = None
+method = "GET"
+if args.command != "list":
+    body = {"metadata_xml": args.metadata.read_text(), "domains": args.domains}
+    if args.attributes:
+        body["attribute_mapping"] = json.loads(args.attributes.read_text())
+    if args.command == "add":
+        body["type"] = "saml"
+        method = "POST"
+    else:
+        path += "/" + str(args.provider)
+        method = "PUT"
+credential = token(secrets_file()["jwt"], "service_role")
+request = Request(
+    f"http://127.0.0.1:{os.environ['TCP_PORT']}{path}",
+    method=method, data=json.dumps(body).encode() if body else None,
+    headers={"Authorization": f"Bearer {credential}", "apikey": credential,
+             "Content-Type": "application/json"},
+)
+try:
+    with urlopen(request, timeout=15) as response:
+        print(json.dumps(json.load(response), indent=2))
+except HTTPError as error:
+    raise SystemExit(f"Supabase rejected the SAML configuration (HTTP {error.code}).") from None

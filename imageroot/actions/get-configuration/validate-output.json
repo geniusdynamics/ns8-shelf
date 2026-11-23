@@ -1,11 +1,11 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Get kickstart settings",
-    "$id": "http://nethserver.org/json-schema/task/input/kickstart/get-configuration",
-    "description": "Get kickstart settings",
+    "title": "Get shelf settings",
+    "$id": "http://nethserver.org/json-schema/task/input/shelf/get-configuration",
+    "description": "Get shelf settings",
     "examples": [
         {
-            "host": "kickstart.domain.org",
+            "host": "shelf.domain.org",
             "http2https": true,
             "lets_encrypt": true
         }
@@ -19,7 +19,7 @@
     "properties": {
         "host": {
             "type": "string",
-            "description": "Host name for the application, like 'kickstart.domain.org'",
+            "description": "Host name for the application, like 'shelf.domain.org'",
             "format": "idn-hostname"
         },
         "lets_encrypt": {
@@ -31,6 +31,19 @@
             "type": "boolean",
             "title": "HTTP to HTTPS redirection",
             "description": "Redirect all the HTTP requests to HTTPS"
+        },
+        "allow_signup": {
+            "type": "boolean",
+            "description": "Allow self-registration with email verification when the NS8 smarthost is enabled."
+        },
+        "saml": {
+            "type": "boolean",
+            "description": "Enable Supabase SAML and Shelf SSO."
+        },
+        "smtp_from": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^(?:[^\\s@]+@[^\\s@]+\\.[^\\s@]+)?$"
         }
     }
 }

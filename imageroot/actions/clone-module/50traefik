@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-
-#
-# Copyright (C) 2023 Nethesis S.r.l.
-# SPDX-License-Identifier: GPL-3.0-or-later
-#
-
-import agent
 import os
+import agent
 
-configure_retval = agent.tasks.run(agent_id=os.environ['AGENT_ID'], action='configure-module', data={
-    "lets_encrypt": os.environ["TRAEFIK_LETS_ENCRYPT"] == "True",
-    "host": os.environ["TRAEFIK_HOST"],
-    "http2https": os.environ["TRAEFIK_HTTP2HTTPS"] == "True",
-})
-agent.assert_exp(configure_retval['exit_code'] == 0, "The configure-module subtask failed!")
+if os.getenv("TRAEFIK_HOST"):
+    result = agent.tasks.run(agent_id=os.environ["AGENT_ID"], action="configure-module", data={
+        "host": os.environ["TRAEFIK_HOST"],
+        "http2https": os.getenv("TRAEFIK_HTTP2HTTPS", "True") == "True",
+        "allow_signup": os.getenv("SHELF_ALLOW_SIGNUP") == "True",
+        "saml": os.getenv("SHELF_SAML") == "True",
+        "smtp_from": os.getenv("SHELF_SMTP_FROM", ""),
+    })
+    agent.assert_exp(result["exit_code"] == 0, "Could not configure Shelf on the destination.")

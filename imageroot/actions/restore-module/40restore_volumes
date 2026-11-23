@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+exec 1>&2
+systemctl --user stop shelf.service
+for volume in shelf-db shelf-db-config shelf-storage; do
+    [[ -f "$volume.tar" ]] || continue
+    podman volume create --ignore "$volume" >/dev/null
+    podman unshare bash -ec '
+        mountpoint=$(podman volume mount "$1")
+        if [[ -n $(find "$mountpoint" -mindepth 1 -maxdepth 1 -print -quit) ]]; then
+            echo "Restore requires an empty volume: $1" >&2
+            exit 1
+        fi
+        tar --numeric-owner -C "$mountpoint" -xpf "$2"
+    ' bash "$volume" "$PWD/$volume.tar"
+done
+rm -f -- shelf-db.tar shelf-db-config.tar shelf-storage.tar
