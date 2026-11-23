@@ -9,8 +9,16 @@ separately managed Keycloak installation can also supply the SAML client.
 
 ## Configure a pilot workspace
 
-1. Verify email sign-in first. Keep an independent workspace administrator
-   who can sign in with email.
+1. Verify email sign-in first. Keep an independent workspace owner who can
+   sign in with email. Grant a trusted, existing local account access to the
+   Shelf instance admin dashboard from the NS8 host.
+
+   ```sh
+   runagent -m shelf1 shelf-admin grant owner@example.net
+   ```
+
+   This role applies across the Shelf instance. Remove it when no longer
+   needed with `shelf-admin revoke owner@example.net`.
 2. Enable **SAML single sign-on** in NS8 Settings. Fetch the service provider
    metadata from `https://<shelf-host>/auth/v1/sso/saml/metadata`. Use the entity
    ID and assertion consumer service URL from that document as-is when
@@ -28,14 +36,15 @@ separately managed Keycloak installation can also supply the SAML client.
    <email-domain>`. Use `--attributes <mapping.json>` when GoTrue needs an
    explicit attribute mapping. Register only metadata from your own IdP.
 
-4. In Shelf, configure the workspace's SSO domain and role mappings using the
-   upstream workspace administration flow. Test a pilot account at
+4. In Shelf, sign in as the instance administrator and open **Admin
+   Dashboard**, then the organization details page. Enable SSO for the
+   workspace and configure its email domains and group-to-role mappings. Test a pilot account at
    `https://<shelf-host>/sso-login`. Verify that the account lands in the right
    workspace with the intended role before requiring SSO for anyone.
 
 Disabling SAML in NS8 stops the login feature and preserves its provider
 records. Remove any workspace requirement for SSO before turning it off.
 
-- [Shelf SSO documentation](https://docs.shelf.nu/)
+- [Shelf SSO documentation](https://docs.shelf.nu/sso/)
 - [Supabase SAML documentation](https://supabase.com/docs/guides/auth/enterprise-sso/auth-sso-saml)
 - [NS8 user domains and provider discovery](https://nethserver.github.io/ns8-core/core/user_domains/#single-sign-on)

@@ -29,6 +29,21 @@ Check Shelf And Supabase Through Traefik
     Should Contain    ${metadata}    EntityDescriptor
     Should Contain    ${metadata}    https://${TEST_HOST}/auth/v1/sso/saml/acs
 
+Snapshot Shelf State And Restart Services
+    ${rc}=    Execute Command
+    ...    runagent -m ${module_id} module-dump-state
+    ...    return_stdout=False    return_rc=True
+    Should Be Equal As Integers    ${rc}    0
+    ${rc}=    Execute Command
+    ...    runagent -m ${module_id} bash -ec 'test -s shelf-db.tar && test -s shelf-db-config.tar && test -s shelf-storage.tar'
+    ...    return_stdout=False    return_rc=True
+    Should Be Equal As Integers    ${rc}    0
+    Check HTTPS Route    /healthcheck
+    ${rc}=    Execute Command
+    ...    runagent -m ${module_id} module-cleanup-state
+    ...    return_stdout=False    return_rc=True
+    Should Be Equal As Integers    ${rc}    0
+
 Remove Shelf
     ${rc}=    Execute Command    remove-module --no-preserve ${module_id}    return_stdout=False    return_rc=True
     Should Be Equal As Integers    ${rc}    0
