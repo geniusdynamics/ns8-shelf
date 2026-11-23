@@ -106,6 +106,12 @@
                     :disabled="stillLoading"
                     class="mg-bottom"
                   />
+                  <cv-text-input
+                    v-model.trim="maptilerToken"
+                    :label="$t('settings.maptiler_token')"
+                    :disabled="stillLoading"
+                    class="mg-bottom"
+                  />
                   <cv-checkbox
                     v-model="allowSignup"
                     :label="$t('settings.allow_signup')"
@@ -208,6 +214,7 @@ export default {
       urlCheckInterval: null,
       host: "",
       smtpFrom: "",
+      maptilerToken: "",
       allowSignup: false,
       saml: false,
       isLetsEncryptEnabled: false,
@@ -344,6 +351,7 @@ export default {
       const config = taskResult.output;
       this.host = config.host;
       this.smtpFrom = config.smtp_from || "";
+      this.maptilerToken = config.maptiler_token || "";
       this.allowSignup = config.allow_signup;
       this.saml = config.saml;
       this.isLetsEncryptEnabled = config.lets_encrypt;
@@ -423,6 +431,7 @@ export default {
           data: {
             host: this.host,
             smtp_from: this.smtpFrom,
+            maptiler_token: this.maptilerToken,
             allow_signup: this.allowSignup,
             saml: this.saml,
             lets_encrypt: this.isLetsEncryptEnabled,

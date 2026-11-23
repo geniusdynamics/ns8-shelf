@@ -10,4 +10,5 @@ agent.mset_env({
     "SHELF_ALLOW_SIGNUP": data.get("allow_signup", False),
     "SHELF_SAML": data.get("saml", False),
     "SHELF_SMTP_FROM": data.get("smtp_from", ""),
+    "SHELF_MAPTILER_TOKEN": data.get("maptiler_token", ""),
 })

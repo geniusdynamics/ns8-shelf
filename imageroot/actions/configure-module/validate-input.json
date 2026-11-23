@@ -43,6 +43,12 @@
             "type": "string",
             "maxLength": 254,
             "pattern": "^(?:[^\\s@]+@[^\\s@]+\\.[^\\s@]+)?$"
+        },
+        "maptiler_token": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9_-]*$",
+            "description": "Optional public MapTiler API key for location maps."
         }
     }
 }

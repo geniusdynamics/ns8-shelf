@@ -19,6 +19,7 @@ Traefik. PostgreSQL and PostgREST remain private to the pod.
    relay accepts and enable self-registration to create the first account.
    Complete signup with the email code and create your workspace. Turn off
    self-registration if you want to restrict enrollment afterward.
+   Enter a public MapTiler API key in Advanced if you use location maps.
 4. Follow the [SAML guide](docs/saml.md) if you want directory-backed sign-in.
 
 The module generates separate credentials for each installation. It creates

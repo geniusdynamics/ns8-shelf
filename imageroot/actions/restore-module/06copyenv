@@ -4,5 +4,5 @@ import sys
 import agent
 
 original = json.load(sys.stdin)["environment"]
-keys = ("TRAEFIK_HOST", "TRAEFIK_HTTP2HTTPS", "SHELF_ALLOW_SIGNUP", "SHELF_SAML", "SHELF_SMTP_FROM")
+keys = ("TRAEFIK_HOST", "TRAEFIK_HTTP2HTTPS", "SHELF_ALLOW_SIGNUP", "SHELF_SAML", "SHELF_SMTP_FROM", "SHELF_MAPTILER_TOKEN")
 agent.mset_env({key: original[key] for key in keys if key in original})

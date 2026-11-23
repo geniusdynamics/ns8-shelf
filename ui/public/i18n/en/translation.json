@@ -41,7 +41,8 @@
     "host_format": "Must be a valid fully qualified domain name",
     "smtp_from": "Sender address for the NS8 smarthost",
     "allow_signup": "Allow self-registration with email verification",
-    "saml": "Enable SAML single sign-on"
+    "saml": "Enable SAML single sign-on",
+    "maptiler_token": "MapTiler public API key (optional)"
   },
   "about": {
     "title": "About"
