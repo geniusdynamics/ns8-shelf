@@ -11,7 +11,7 @@ finish() {
     status=$?
     rm -rf -- "$temporary"
     if "$active"; then
-        systemctl --user start shelf.service || status=1
+        systemctl --user start shelf.service shelf-web.service || status=1
     fi
     exit "$status"
 }
