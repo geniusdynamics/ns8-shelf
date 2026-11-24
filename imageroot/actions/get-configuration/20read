@@ -20,7 +20,12 @@ config = {}
 # Read current configuration from the environment file
 config["host"] = os.getenv("TRAEFIK_HOST","")
 config["http2https"] = os.getenv("TRAEFIK_HTTP2HTTPS") == "True"
-config["lets_encrypt"] = agent.get_route(os.environ['MODULE_ID']).get('lets_encrypt', False)
+# The Traefik route does not exist before the first configure-module
+try:
+    config["lets_encrypt"] = agent.get_route(os.environ['MODULE_ID']).get('lets_encrypt', False)
+except Exception as ex:
+    print(f"Cannot read the Traefik route: {ex}", file=sys.stderr)
+    config["lets_encrypt"] = False
 
 config["allow_signup"] = os.getenv("SHELF_ALLOW_SIGNUP") == "True"
 config["saml"] = os.getenv("SHELF_SAML") == "True"
