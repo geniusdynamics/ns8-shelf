@@ -1,11 +1,33 @@
 #!/bin/bash
+set -euo pipefail
+umask 077
 
-#
-# Copyright (C) 2022 Nethesis S.r.l.
-# SPDX-License-Identifier: GPL-3.0-or-later
-#
-
-set -e
-
-echo "Dumping kickstart postgres database"
-podman exec postgresql-app pg_dump -U postgres --format=c  kickstart > kickstart.pg_dump
+active=false
+if systemctl --user is-active --quiet shelf.service; then
+    active=true
+fi
+temporary=$(mktemp -d -p "$PWD")
+finish() {
+    status=$?
+    rm -rf -- "$temporary"
+    if "$active"; then
+        systemctl --user start shelf.service shelf-web.service || status=1
+    fi
+    exit "$status"
+}
+trap finish EXIT
+if "$active"; then
+    systemctl --user stop shelf.service
+fi
+for volume in shelf-db shelf-db-config shelf-storage; do
+    if podman volume exists "$volume"; then
+        podman unshare bash -ec 'tar --numeric-owner -C "$(podman volume mount "$1")" -cpf "$2" .'             bash "$volume" "$temporary/$volume.tar"
+    fi
+done
+for volume in shelf-db shelf-db-config shelf-storage; do
+    if [[ -f "$temporary/$volume.tar" ]]; then
+        mv -f -- "$temporary/$volume.tar" "$volume.tar"
+    else
+        rm -f -- "$volume.tar"
+    fi
+done

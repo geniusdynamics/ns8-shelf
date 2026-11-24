@@ -1,11 +1,11 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Configure kickstart",
-    "$id": "http://nethserver.org/json-schema/task/input/kickstart/configure-module",
-    "description": "Configure kickstart",
+    "title": "Configure shelf",
+    "$id": "http://nethserver.org/json-schema/task/input/shelf/configure-module",
+    "description": "Configure shelf",
     "examples": [
         {
-            "host": "kickstart.domain.org",
+            "host": "shelf.domain.org",
             "http2https": true,
             "lets_encrypt": true
         }
@@ -17,7 +17,7 @@
     "properties": {
         "host": {
             "type": "string",
-            "description": "Host name for the application, like 'kickstart.domain.org'",
+            "description": "Host name for the application, like 'shelf.domain.org'",
             "format": "hostname",
             "pattern": "\\."
         },
@@ -30,6 +30,25 @@
             "type": "boolean",
             "title": "HTTP to HTTPS redirection",
             "description": "Redirect all the HTTP requests to HTTPS"
+        },
+        "allow_signup": {
+            "type": "boolean",
+            "description": "Allow self-registration with email verification when the NS8 smarthost is enabled."
+        },
+        "saml": {
+            "type": "boolean",
+            "description": "Enable Supabase SAML and Shelf SSO."
+        },
+        "smtp_from": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^(?:[^\\s@]+@[^\\s@]+\\.[^\\s@]+)?$"
+        },
+        "maptiler_token": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9_-]*$",
+            "description": "Optional public MapTiler API key for location maps."
         }
     }
 }
