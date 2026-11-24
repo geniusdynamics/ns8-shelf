@@ -1,36 +1,14 @@
 #!/usr/bin/env python3
-
-#
-# Copyright (C) 2022 Nethesis S.r.l.
-# SPDX-License-Identifier: GPL-3.0-or-later
-#
-
 import json
-import os
 import sys
 import agent
 
 data = json.load(sys.stdin)
-
-# Non-secret settings go to the module environment. The containers' env
-# files are generated from them by bin/render-env when the services start.
-agent.set_env("TRAEFIK_HOST", data["host"])
-if "disable_signup" in data:
-    agent.set_env("SHELF_DISABLE_SIGNUP", "true" if data["disable_signup"] else "false")
-if "mail_from" in data:
-    agent.set_env("SHELF_MAIL_FROM", data["mail_from"])
-
-# The MapTiler token is kept in a private file, not in the environment,
-# which is stored in Redis and readable by the other modules of the node.
-# Not sent: keep the current token. Empty: remove it.
-if "maptiler_token" in data:
-    path = os.path.join(os.environ["AGENT_STATE_DIR"], "settings.env")
-    os.umask(0o077)
-    tmp = f"{path}.{os.getpid()}.tmp"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as fp:
-        if data["maptiler_token"]:
-            fp.write(f"MAPTILER_TOKEN={data['maptiler_token']}\n")
-    os.replace(tmp, path)
-
-agent.dump_env()
+agent.mset_env({
+    "TRAEFIK_HOST": data["host"],
+    "TRAEFIK_HTTP2HTTPS": data.get("http2https", True),
+    "SHELF_ALLOW_SIGNUP": data.get("allow_signup", False),
+    "SHELF_SAML": data.get("saml", False),
+    "SHELF_SMTP_FROM": data.get("smtp_from", ""),
+    "SHELF_MAPTILER_TOKEN": data.get("maptiler_token", ""),
+})

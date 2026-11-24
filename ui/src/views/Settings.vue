@@ -23,16 +23,16 @@
       <cv-column>
         <cv-tile light>
           <cv-form @submit.prevent="configureModule">
-            <NsTextInput
+            <cv-text-input
               :label="$t('settings.shelf_fqdn')"
               placeholder="shelf.example.org"
               v-model.trim="host"
               class="mg-bottom"
               :invalid-message="$t(error.host)"
-              :disabled="stillLoading"
+              :disabled="loading.getConfiguration || loading.configureModule"
               ref="host"
             >
-            </NsTextInput>
+            </cv-text-input>
             <NsToggle
               value="letsEncrypt"
               :label="core.$t('apps_lets_encrypt.request_https_certificate')"
@@ -80,69 +80,50 @@
                 />
               </cv-column>
             </cv-row>
-            <NsToggle
-              value="disableSignup"
-              :label="$t('settings.disable_signup')"
-              v-model="isSignupDisabled"
-              :disabled="stillLoading"
+            <cv-toggle
+              value="httpToHttps"
+              :label="$t('settings.http_to_https')"
+              v-model="isHttpToHttpsEnabled"
+              :disabled="loading.getConfiguration || loading.configureModule"
               class="mg-bottom"
             >
-              <template #tooltip>
-                {{ $t("settings.disable_signup_tooltip") }}
-              </template>
               <template slot="text-left">{{
                 $t("settings.disabled")
               }}</template>
               <template slot="text-right">{{
                 $t("settings.enabled")
               }}</template>
-            </NsToggle>
-            <NsInlineNotification
-              v-if="!isSmarthostEnabled && !loading.getConfiguration"
-              kind="warning"
-              :title="$t('settings.smarthost_disabled_title')"
-              :description="$t('settings.smarthost_disabled_description')"
-              :showCloseButton="false"
-            />
+            </cv-toggle>
             <!-- advanced options -->
             <cv-accordion ref="accordion" class="maxwidth mg-bottom">
               <cv-accordion-item :open="toggleAccordion[0]">
                 <template slot="title">{{ $t("settings.advanced") }}</template>
                 <template slot="content">
-                  <NsTextInput
-                    :label="$t('settings.mail_from')"
-                    :helper-text="$t('settings.mail_from_helper')"
-                    placeholder="shelf@example.org"
-                    v-model.trim="mailFrom"
-                    class="mg-bottom"
-                    :invalid-message="$t(error.mail_from)"
+                  <cv-text-input
+                    v-model.trim="smtpFrom"
+                    :label="$t('settings.smtp_from')"
+                    type="email"
                     :disabled="stillLoading"
-                    ref="mail_from"
-                  >
-                  </NsTextInput>
-                  <NsTextInput
-                    type="password"
-                    :label="$t('settings.maptiler_token')"
-                    :helper-text="
-                      isMaptilerTokenSet
-                        ? $t('settings.maptiler_token_set_helper')
-                        : $t('settings.maptiler_token_helper')
-                    "
+                    class="mg-bottom"
+                  />
+                  <cv-text-input
                     v-model.trim="maptilerToken"
-                    class="mg-bottom"
-                    :invalid-message="$t(error.maptiler_token)"
-                    :disabled="stillLoading || removeMaptilerToken"
-                    autocomplete="new-password"
-                    ref="maptiler_token"
-                  >
-                  </NsTextInput>
-                  <NsCheckbox
-                    v-if="isMaptilerTokenSet"
-                    :label="$t('settings.remove_maptiler_token')"
-                    v-model="removeMaptilerToken"
+                    :label="$t('settings.maptiler_token')"
                     :disabled="stillLoading"
-                    value="removeMaptilerToken"
                     class="mg-bottom"
+                  />
+                  <cv-checkbox
+                    v-model="allowSignup"
+                    :label="$t('settings.allow_signup')"
+                    :disabled="stillLoading"
+                  />
+                  <p class="mg-bottom">
+                    {{ $t("settings.allow_signup_help") }}
+                  </p>
+                  <cv-checkbox
+                    v-model="saml"
+                    :label="$t('settings.saml')"
+                    :disabled="stillLoading"
                   />
                 </template>
               </cv-accordion-item>
@@ -193,9 +174,41 @@
               kind="primary"
               :icon="Save20"
               :loading="loading.configureModule"
-              :disabled="loading.getConfiguration || loading.configureModule"
+              :disabled="stillLoading"
               >{{ $t("settings.save") }}</NsButton
             >
+          </cv-form>
+        </cv-tile>
+      </cv-column>
+    </cv-row>
+    <cv-row v-if="shelfConfigured">
+      <cv-column>
+        <cv-tile light>
+          <cv-form @submit.prevent="grantShelfAdmin">
+            <h2 class="mg-bottom">{{ $t("settings.shelf_admin_title") }}</h2>
+            <p class="mg-bottom">{{ $t("settings.shelf_admin_help") }}</p>
+            <cv-text-input
+              v-model.trim="adminEmail"
+              :label="$t('settings.shelf_admin_email')"
+              type="email"
+              required
+              :disabled="stillLoading"
+              class="mg-bottom"
+            />
+            <NsInlineNotification
+              v-if="adminGrantMessage"
+              :kind="adminGrantKind"
+              :title="adminGrantMessage"
+              :showCloseButton="false"
+              class="mg-bottom"
+            />
+            <NsButton
+              kind="primary"
+              :disabled="stillLoading || !adminEmail"
+              :loading="loading.grantShelfAdmin"
+            >
+              {{ $t("action.grant-shelf-admin") }}
+            </NsButton>
           </cv-form>
         </cv-tile>
       </cv-column>
@@ -235,18 +248,22 @@ export default {
       validationErrorDetails: [],
       urlCheckInterval: null,
       host: "",
+      smtpFrom: "",
+      maptilerToken: "",
+      allowSignup: false,
+      saml: false,
+      shelfConfigured: false,
+      adminEmail: "",
+      adminGrantMessage: "",
+      adminGrantKind: "",
+      adminGrantCleanup: null,
       isLetsEncryptEnabled: false,
       isLetsEncryptCurrentlyEnabled: false,
-      isSignupDisabled: false,
-      mailFrom: "",
-      maptilerToken: "",
-      isMaptilerTokenSet: false,
-      removeMaptilerToken: false,
-      isSmarthostEnabled: true,
-      toggleAccordion: [false],
+      isHttpToHttpsEnabled: true,
       loading: {
         getConfiguration: false,
         configureModule: false,
+        grantShelfAdmin: false,
         getStatus: false,
       },
       error: {
@@ -254,9 +271,8 @@ export default {
         configureModule: "",
         host: "",
         lets_encrypt: "",
-        mail_from: "",
-        maptiler_token: "",
-        getStatus: "",
+        http2https: "",
+        getStatus: false,
       },
     };
   },
@@ -266,6 +282,7 @@ export default {
       return (
         this.loading.getConfiguration ||
         this.loading.configureModule ||
+        this.loading.grantShelfAdmin ||
         this.loading.getStatus
       );
     },
@@ -273,6 +290,11 @@ export default {
   created() {
     this.getConfiguration();
     this.getStatus();
+  },
+  beforeDestroy() {
+    if (this.adminGrantCleanup) {
+      this.adminGrantCleanup();
+    }
   },
   beforeRouteEnter(to, from, next) {
     next((vm) => {
@@ -375,15 +397,14 @@ export default {
     getConfigurationCompleted(taskContext, taskResult) {
       const config = taskResult.output;
       this.host = config.host;
+      this.shelfConfigured = Boolean(config.host);
+      this.smtpFrom = config.smtp_from || "";
+      this.maptilerToken = config.maptiler_token || "";
+      this.allowSignup = config.allow_signup;
+      this.saml = config.saml;
       this.isLetsEncryptEnabled = config.lets_encrypt;
       this.isLetsEncryptCurrentlyEnabled = config.lets_encrypt;
-      this.isSignupDisabled = config.disable_signup;
-      this.mailFrom = config.mail_from;
-      this.isMaptilerTokenSet = config.maptiler_token_set;
-      this.isSmarthostEnabled = config.smarthost_enabled;
-      // never keep a typed secret around after a save
-      this.maptilerToken = "";
-      this.removeMaptilerToken = false;
+      this.isHttpToHttpsEnabled = config.http2https;
 
       this.loading.getConfiguration = false;
       this.focusElement("host");
@@ -423,22 +444,12 @@ export default {
         }
       }
     },
-    buildConfigureModuleData() {
-      const data = {
-        host: this.host,
-        lets_encrypt: this.isLetsEncryptEnabled,
-        disable_signup: this.isSignupDisabled,
-        mail_from: this.mailFrom,
-      };
-      // An empty value keeps the current key: send it only to set or remove it
-      if (this.removeMaptilerToken) {
-        data.maptiler_token = "";
-      } else if (this.maptilerToken) {
-        data.maptiler_token = this.maptilerToken;
-      }
-      return data;
-    },
     async configureModule() {
+      if (this.loading.grantShelfAdmin) {
+        return;
+      }
+      this.error.test_imap = false;
+      this.error.test_smtp = false;
       const isValidationOk = this.validateConfigureModule();
       if (!isValidationOk) {
         return;
@@ -468,7 +479,15 @@ export default {
       const res = await to(
         this.createModuleTaskForApp(this.instanceName, {
           action: taskAction,
-          data: this.buildConfigureModuleData(),
+          data: {
+            host: this.host,
+            smtp_from: this.smtpFrom,
+            maptiler_token: this.maptilerToken,
+            allow_signup: this.allowSignup,
+            saml: this.saml,
+            lets_encrypt: this.isLetsEncryptEnabled,
+            http2https: this.isHttpToHttpsEnabled,
+          },
           extra: {
             title: this.$t("settings.instance_configuration", {
               instance: this.instanceName,
@@ -491,6 +510,73 @@ export default {
       console.error(`${taskContext.action} aborted`, taskResult);
       this.error.configureModule = this.$t("error.generic_error");
       this.loading.configureModule = false;
+    },
+    async grantShelfAdmin() {
+      if (this.stillLoading || !this.adminEmail) {
+        return;
+      }
+
+      this.loading.grantShelfAdmin = true;
+      this.adminGrantMessage = "";
+      const action = "grant-shelf-admin";
+      const eventId = this.getUuid();
+      const root = this.core.$root;
+      const events = {
+        [`${action}-completed-${eventId}`]: (_, result) => {
+          const status = result.output && result.output.status;
+          const messages = {
+            granted: "shelf_admin_granted",
+            already_granted: "shelf_admin_already_granted",
+            no_eligible_account: "shelf_admin_no_eligible_account",
+          };
+          if (!messages[status]) {
+            showError(this.$t("error.generic_error"));
+            return;
+          }
+          this.adminGrantKind =
+            status === "no_eligible_account" ? "error" : "success";
+          this.adminGrantMessage = this.$t("settings." + messages[status]);
+          if (this.adminGrantKind === "success") {
+            this.adminEmail = "";
+          }
+          cleanup();
+        },
+        [`${action}-aborted-${eventId}`]: () =>
+          showError(this.$t("error.generic_error")),
+        [`${action}-validation-failed-${eventId}`]: () =>
+          showError(this.$t("settings.shelf_admin_invalid_email")),
+      };
+      const cleanup = () => {
+        Object.entries(events).forEach(([event, callback]) =>
+          root.$off(event, callback)
+        );
+        this.adminGrantCleanup = null;
+        this.loading.grantShelfAdmin = false;
+      };
+      const showError = (message) => {
+        this.adminGrantKind = "error";
+        this.adminGrantMessage = message;
+        cleanup();
+      };
+      this.adminGrantCleanup = cleanup;
+      Object.entries(events).forEach(([event, callback]) =>
+        root.$once(event, callback)
+      );
+
+      const [err] = await to(
+        this.createModuleTaskForApp(this.instanceName, {
+          action,
+          data: { email: this.adminEmail },
+          extra: {
+            title: this.$t("action.grant-shelf-admin"),
+            isNotificationHidden: true,
+            eventId,
+          },
+        })
+      );
+      if (err && this.adminGrantCleanup === cleanup) {
+        showError(this.getErrorMessage(err));
+      }
     },
     configureModuleCompleted() {
       this.loading.configureModule = false;

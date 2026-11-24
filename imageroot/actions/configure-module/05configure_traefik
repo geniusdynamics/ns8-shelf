@@ -10,15 +10,20 @@ import sys
 import agent
 import os
 
+# Try to parse the stdin as JSON.
+# If parsing fails, output everything to stderr
 data = json.load(sys.stdin)
 
-# Shelf sets secure-only cookies, so it is always served over HTTPS: the
-# HTTP to HTTPS redirection cannot be turned off.
+# Setup default values
+host = data["host"]
+h2hs = data.get("http2https", True)
+
+# Configure Traefik route for API
 set_route_data = {
     'instance': os.environ['MODULE_ID'],
-    'url': 'http://127.0.0.1:' + os.environ["TCP_PORT"],
-    'host': data["host"],
-    'http2https': True,
+    'url':  'http://127.0.0.1:' + os.environ["TCP_PORT"],
+    'host': host,
+    'http2https': h2hs,
     'lets_encrypt_check': True,
     'lets_encrypt_cleanup': True,
 }

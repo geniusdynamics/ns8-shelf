@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+import json
+import sys
+
+from shelf_admin import set_admin
+
+email = json.load(sys.stdin)["email"]
+status = {
+    "updated": "granted",
+    "unchanged": "already_granted",
+    "no_eligible_account": "no_eligible_account",
+}[set_admin("grant", email)]
+json.dump({"status": status}, sys.stdout)

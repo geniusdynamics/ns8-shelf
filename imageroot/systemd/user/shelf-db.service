@@ -1,0 +1,24 @@
+[Unit]
+Description=Supabase PostgreSQL
+BindsTo=shelf.service
+PartOf=shelf.service
+After=shelf.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%E/state/environment
+WorkingDirectory=%E/state
+Restart=on-failure
+TimeoutStartSec=240
+TimeoutStopSec=75
+ExecStart=/usr/bin/podman run --replace --name %N --pod shelf --sdnotify=conmon --cgroups=no-conmon \
+    --env-file=%E/state/shelf-db.env \
+    --volume shelf-db:/var/lib/postgresql/data:Z \
+    --volume shelf-db-config:/etc/postgresql-custom:Z \
+    --volume %E/etc/shelf-roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:ro,Z \
+    ${POSTGRES_IMAGE} postgres -c config_file=/etc/postgresql/postgresql.conf
+ExecStartPost=/usr/bin/timeout 150 /usr/bin/bash -c 'until podman exec shelf-db psql -h 127.0.0.1 -U postgres -d postgres -Atqc "SELECT 1" >/dev/null 2>&1; do sleep 2; done'
+ExecStop=/usr/bin/podman stop --ignore -t 25 %N
+ExecStopPost=/usr/bin/podman rm --ignore -f %N

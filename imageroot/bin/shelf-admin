@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""Grant or revoke the Shelf instance-admin role for an existing account."""
+import argparse
+from shelf_admin import set_admin
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("action", choices=("grant", "revoke"))
+parser.add_argument("email", help="Exact email address of an existing Shelf account")
+args = parser.parse_args()
+result = set_admin(args.action, args.email)
+if result == "updated":
+    print("Shelf administrator role updated.")
+elif result == "unchanged":
+    print("Shelf administrator role already has the requested state.")
+else:
+    raise SystemExit("No eligible Shelf account or administrator role was found.")

@@ -1,10 +1,10 @@
 {
   "name": "Shelf",
   "description": {
-    "en": "Track assets, assign custody, book equipment and scan QR codes with Shelf, an open-source asset management app."
+    "en": "Track equipment and assets, assign custody, and schedule shared equipment with Shelf."
   },
   "categories": [
-    "productivity"
+    "collaboration"
   ],
   "authors": [
     {
@@ -12,7 +12,7 @@
     }
   ],
   "docs": {
-    "documentation_url": "https://docs.shelf.nu/",
+    "documentation_url": "https://github.com/geniusdynamics/ns8-shelf#readme",
     "bug_url": "https://github.com/geniusdynamics/ns8-shelf/issues",
     "code_url": "https://github.com/geniusdynamics/ns8-shelf"
   },

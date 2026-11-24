@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+import os
+import agent
+
+if os.getenv("TRAEFIK_HOST"):
+    result = agent.tasks.run(agent_id=os.environ["AGENT_ID"], action="configure-module", data={
+        "host": os.environ["TRAEFIK_HOST"],
+        "http2https": os.getenv("TRAEFIK_HTTP2HTTPS", "True") == "True",
+        "allow_signup": os.getenv("SHELF_ALLOW_SIGNUP") == "True",
+        "saml": os.getenv("SHELF_SAML") == "True",
+        "smtp_from": os.getenv("SHELF_SMTP_FROM", ""),
+        "maptiler_token": os.getenv("SHELF_MAPTILER_TOKEN", ""),
+    })
+    agent.assert_exp(result["exit_code"] == 0, "Could not configure Shelf on the destination.")

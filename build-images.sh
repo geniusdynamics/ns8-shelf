@@ -38,22 +38,18 @@ buildah run \
 # Add imageroot directory to the container image
 buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
-# Setup the entrypoint, ask to reserve one TCP port with the label and set a rootless container.
-# Every image pulled at runtime is listed in org.nethserver.images with a fully pinned tag,
-# so that Renovate can track upstream releases. The module needs, besides Shelf itself:
-# - PostgreSQL: the database of Shelf and of the Supabase services below
-# - supabase/gotrue: Supabase Auth, Shelf signs users in with it (one-time passwords by email)
-# - supabase/storage-api: Supabase Storage, Shelf keeps uploaded images and files there
-# - nginx: reverse proxy that serves Shelf, /auth/v1 and /storage/v1 under a single host name
+# Setup the entrypoint, ask to reserve one TCP port with the label and set a rootless container
+# Select you image(s) with the label org.nethserver.images
+# ghcr.io/xxxxx is the GitHub container registry or your own registry or docker.io for Docker Hub
+# The image tag is set to latest by default, but can be overridden with the IMAGETAG environment variable
 # rootfull=0 === rootless container
-# tcp-ports-demand=1 number of tcp Port to reserve
+# tcp-ports-demand=1 number of tcp Port to reserve , 1 is the minimum, can be udp or tcp
 buildah config --entrypoint=/ \
     --label="org.nethserver.authorizations=traefik@node:routeadm" \
     --label="org.nethserver.tcp-ports-demand=1" \
     --label="org.nethserver.rootfull=0" \
     --label="org.nethserver.min-core=3.20.1" \
-    --label="org.nethserver.volumes=postgres-data storage-data" \
-    --label="org.nethserver.images=docker.io/postgres:17.12-alpine docker.io/nginx:1.30.8-alpine docker.io/supabase/gotrue:v2.198.0 docker.io/supabase/storage-api:v1.98.6 ghcr.io/shelf-nu/shelf.nu:2.6.0" \
+    --label="org.nethserver.images=ghcr.io/shelf-nu/shelf.nu:2.6.0 docker.io/supabase/postgres:17.6.1.136 docker.io/supabase/gotrue:v2.197.0 docker.io/postgrest/postgrest:v14.18 docker.io/supabase/storage-api:v1.89.12 docker.io/library/nginx:1.30.2-alpine" \
     "${container}"
 # Commit the image
 buildah commit "${container}" "${repobase}/${reponame}"
@@ -62,7 +58,17 @@ buildah commit "${container}" "${repobase}/${reponame}"
 images+=("${repobase}/${reponame}")
 
 #
-# Setup CI when pushing to Github.
+# NOTICE:
+#
+# It is possible to build and publish multiple images.
+#
+# 1. create another buildah container
+# 2. add things to it and commit it
+# 3. append the image url to the images array
+#
+
+#
+# Setup CI when pushing to Github. 
 # Warning! docker::// protocol expects lowercase letters (,,)
 if [[ -n "${CI}" ]]; then
     # Set output value for Github Actions

@@ -39,16 +39,6 @@
         />
       </cv-column>
     </cv-row>
-    <cv-row v-if="host && !loading.getConfiguration && !smarthostEnabled">
-      <cv-column>
-        <NsInlineNotification
-          kind="warning"
-          :title="$t('status.smarthost_disabled_title')"
-          :description="$t('status.smarthost_disabled_description')"
-          :showCloseButton="false"
-        />
-      </cv-column>
-    </cv-row>
     <cv-row>
       <cv-column :md="4" :max="4">
         <NsInfoCard
@@ -327,7 +317,6 @@ export default {
       isRedirectChecked: false,
       redirectTimeout: 0,
       host: "",
-      smarthostEnabled: true,
       status: {
         instance: "",
         services: [],
@@ -443,7 +432,6 @@ export default {
     getConfigurationCompleted(taskContext, taskResult) {
       const config = taskResult.output;
       this.host = config.host;
-      this.smarthostEnabled = config.smarthost_enabled;
       this.loading.getConfiguration = false;
     },
     async getStatus() {

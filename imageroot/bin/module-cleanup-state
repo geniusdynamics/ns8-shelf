@@ -1,9 +1,3 @@
 #!/bin/bash
-
-#
-# Copyright (C) 2022 Nethesis S.r.l.
-# SPDX-License-Identifier: GPL-3.0-or-later
-#
-
-cd "${AGENT_STATE_DIR:-.}"
-rm -vf shelf.pg_dump shelf.pg_dump.tmp
+set -e
+rm -f -- shelf-db.tar shelf-db-config.tar shelf-storage.tar

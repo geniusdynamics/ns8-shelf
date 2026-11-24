@@ -1,18 +1,4 @@
 #!/bin/bash
-
-#
-# Copyright (C) 2023 Nethesis S.r.l.
-# SPDX-License-Identifier: GPL-3.0-or-later
-#
-
-# Shelf and Supabase Auth send e-mail through the cluster smarthost: refresh
-# their env files, then restart them if they are running.
-
 set -e
 exec 1>&2
-
-# Nothing to do until the module is configured
-[ -n "${TRAEFIK_HOST:-}" ] || exit 0
-
-"${AGENT_INSTALL_DIR:-${HOME}/.config}/bin/render-env"
-systemctl --user try-restart gotrue-app.service shelf-app.service
+systemctl --user try-restart shelf.service

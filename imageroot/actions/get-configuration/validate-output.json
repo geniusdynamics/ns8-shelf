@@ -1,55 +1,55 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Get Shelf settings",
-    "$id": "http://nethserver.org/json-schema/task/output/shelf/get-configuration",
-    "description": "Get Shelf settings. Secrets are never returned.",
+    "title": "Get shelf settings",
+    "$id": "http://nethserver.org/json-schema/task/input/shelf/get-configuration",
+    "description": "Get shelf settings",
     "examples": [
         {
             "host": "shelf.domain.org",
-            "lets_encrypt": true,
-            "disable_signup": false,
-            "mail_from": "",
-            "maptiler_token_set": false,
-            "smarthost_enabled": true
+            "http2https": true,
+            "lets_encrypt": true
         }
     ],
     "type": "object",
     "required": [
         "host",
-        "lets_encrypt",
-        "disable_signup",
-        "mail_from",
-        "maptiler_token_set",
-        "smarthost_enabled"
+        "http2https",
+        "lets_encrypt"
     ],
     "properties": {
         "host": {
             "type": "string",
-            "description": "Host name for the application, like 'shelf.domain.org'. Empty if not configured yet."
+            "description": "Host name for the application, like 'shelf.domain.org'",
+            "format": "idn-hostname"
         },
         "lets_encrypt": {
             "type": "boolean",
             "title": "Let's Encrypt certificate",
-            "description": "A valid Let's Encrypt certificate is requested."
+            "description": "Request a valid Let's Encrypt certificate."
         },
-        "disable_signup": {
+        "http2https": {
             "type": "boolean",
-            "title": "Self-service sign-up is disabled"
+            "title": "HTTP to HTTPS redirection",
+            "description": "Redirect all the HTTP requests to HTTPS"
         },
-        "mail_from": {
+        "allow_signup": {
+            "type": "boolean",
+            "description": "Allow self-registration with email verification when the NS8 smarthost is enabled."
+        },
+        "saml": {
+            "type": "boolean",
+            "description": "Enable Supabase SAML and Shelf SSO."
+        },
+        "smtp_from": {
             "type": "string",
-            "title": "Sender e-mail address",
-            "description": "Empty means noreply@<host>."
+            "maxLength": 254,
+            "pattern": "^(?:[^\\s@]+@[^\\s@]+\\.[^\\s@]+)?$"
         },
-        "maptiler_token_set": {
-            "type": "boolean",
-            "title": "A MapTiler API key is configured",
-            "description": "The key itself is never returned."
-        },
-        "smarthost_enabled": {
-            "type": "boolean",
-            "title": "The cluster smarthost is enabled",
-            "description": "Shelf sends the sign-in codes through it. Without it nobody can sign in."
+        "maptiler_token": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9_-]*$",
+            "description": "Optional public MapTiler API key for location maps."
         }
     }
 }

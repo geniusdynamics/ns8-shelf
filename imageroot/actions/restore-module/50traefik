@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+import agent
+
+original = json.load(sys.stdin)["environment"]
+if original.get("TRAEFIK_HOST"):
+    result = agent.tasks.run(agent_id=os.environ["AGENT_ID"], action="configure-module", data={
+        "host": original["TRAEFIK_HOST"],
+        "http2https": original.get("TRAEFIK_HTTP2HTTPS", "True") == "True",
+        "allow_signup": original.get("SHELF_ALLOW_SIGNUP") == "True",
+        "saml": original.get("SHELF_SAML") == "True",
+        "smtp_from": original.get("SHELF_SMTP_FROM", ""),
+        "maptiler_token": original.get("SHELF_MAPTILER_TOKEN", ""),
+    })
+    agent.assert_exp(result["exit_code"] == 0, "Could not configure the restored Shelf instance.")

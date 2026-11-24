@@ -1,0 +1,21 @@
+[Unit]
+Description=Private Supabase PostgREST
+BindsTo=shelf.service
+PartOf=shelf.service
+After=shelf.service shelf-db.service
+Requires=shelf-db.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%E/state/environment
+WorkingDirectory=%E/state
+Restart=on-failure
+TimeoutStartSec=240
+TimeoutStopSec=75
+ExecStart=/usr/bin/podman run --replace --name %N --pod shelf --sdnotify=conmon --cgroups=no-conmon \
+    --env-file=%E/state/shelf-rest.env \
+    ${POSTGREST_IMAGE}
+ExecStop=/usr/bin/podman stop --ignore -t 25 %N
+ExecStopPost=/usr/bin/podman rm --ignore -f %N

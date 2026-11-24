@@ -1,25 +1,33 @@
 #!/bin/bash
-
-#
-# Copyright (C) 2022 Nethesis S.r.l.
-# SPDX-License-Identifier: GPL-3.0-or-later
-#
-
-# Runs in the state directory before every backup. The dump holds the Shelf
-# data and the Supabase Auth and Storage metadata, in one consistent snapshot.
-
-set -e
+set -euo pipefail
 umask 077
-cd "${AGENT_STATE_DIR:-.}"
 
-if [ -z "${TRAEFIK_HOST:-}" ]; then
-    # Never configured: there is no database yet. Leave an empty marker so the
-    # backup is complete and a restore can tell what happened.
-    echo "Module not configured, no database to dump"
-    : > shelf.pg_dump
-    exit 0
+active=false
+if systemctl --user is-active --quiet shelf.service; then
+    active=true
 fi
-
-echo "Dumping the Shelf database"
-podman exec postgres-app pg_dump -U postgres --format=c shelf > shelf.pg_dump.tmp
-mv shelf.pg_dump.tmp shelf.pg_dump
+temporary=$(mktemp -d -p "$PWD")
+finish() {
+    status=$?
+    rm -rf -- "$temporary"
+    if "$active"; then
+        systemctl --user start shelf.service shelf-web.service || status=1
+    fi
+    exit "$status"
+}
+trap finish EXIT
+if "$active"; then
+    systemctl --user stop shelf.service
+fi
+for volume in shelf-db shelf-db-config shelf-storage; do
+    if podman volume exists "$volume"; then
+        podman unshare bash -ec 'tar --numeric-owner -C "$(podman volume mount "$1")" -cpf "$2" .'             bash "$volume" "$temporary/$volume.tar"
+    fi
+done
+for volume in shelf-db shelf-db-config shelf-storage; do
+    if [[ -f "$temporary/$volume.tar" ]]; then
+        mv -f -- "$temporary/$volume.tar" "$volume.tar"
+    else
+        rm -f -- "$volume.tar"
+    fi
+done

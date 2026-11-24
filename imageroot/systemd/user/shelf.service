@@ -1,42 +1,20 @@
-#
-# Copyright (C) 2022 Nethesis S.r.l.
-# SPDX-License-Identifier: GPL-3.0-or-later
-#
-
-#
-# Pod of the module: it publishes the only TCP port of the module on the
-# loopback interface, where Traefik forwards the requests. All the
-# containers of the module join this pod and talk to each other on
-# 127.0.0.1. The public host name resolves to 127.0.0.1 inside the pod, where
-# the gateway answers for it (see etc/gateway/default.conf).
-#
-
 [Unit]
-Description=Podman shelf.service
-Requires=postgres-app.service gateway-app.service gotrue-app.service storage-app.service shelf-app.service
-Before=postgres-app.service gateway-app.service gotrue-app.service storage-app.service shelf-app.service
+Description=Shelf pod
+Requires=shelf-db.service shelf-auth.service shelf-rest.service shelf-storage.service shelf-gateway.service shelf-web.service
+Before=shelf-db.service shelf-auth.service shelf-rest.service shelf-storage.service shelf-gateway.service shelf-web.service
 
 [Service]
-Environment=PODMAN_SYSTEMD_UNIT=%n
-EnvironmentFile=%S/state/environment
-WorkingDirectory=%S/state
-Restart=always
-TimeoutStopSec=70
-ExecStartPre=/bin/rm -f %t/shelf.pid %t/shelf.pod-id
-# Generate the private env files of the containers (secrets, settings and
-# smarthost discovery), see bin/render-env
-ExecStartPre=runagent render-env
-ExecStartPre=/usr/bin/podman pod create --infra-conmon-pidfile %t/shelf.pid \
-    --pod-id-file %t/shelf.pod-id \
-    --name shelf \
-    --add-host ${TRAEFIK_HOST}:127.0.0.1 \
-    --publish 127.0.0.1:${TCP_PORT}:8000 \
-    --replace
-ExecStart=/usr/bin/podman pod start --pod-id-file %t/shelf.pod-id
-ExecStop=/usr/bin/podman pod stop --ignore --pod-id-file %t/shelf.pod-id -t 10
-ExecStopPost=/usr/bin/podman pod rm --ignore -f --pod-id-file %t/shelf.pod-id
-PIDFile=%t/shelf.pid
 Type=forking
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%E/state/environment
+PIDFile=%t/shelf.pid
+Restart=on-failure
+ExecStartPre=runagent shelf-render
+ExecStartPre=/usr/bin/rm -f %t/shelf.pid
+ExecStartPre=/usr/bin/podman pod create --replace --name shelf --infra-conmon-pidfile %t/shelf.pid --shm-size=256m --publish 127.0.0.1:${TCP_PORT}:18080
+ExecStart=/usr/bin/podman pod start shelf
+ExecStop=/usr/bin/podman pod stop --ignore -t 25 shelf
+ExecStopPost=/usr/bin/podman pod rm --ignore -f shelf
 
 [Install]
 WantedBy=default.target
