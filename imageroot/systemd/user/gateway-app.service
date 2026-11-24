@@ -1,0 +1,39 @@
+#
+# Copyright (C) 2022 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# nginx: serves Shelf, Supabase Auth (/auth/v1) and Supabase Storage
+# (/storage/v1) under the same host name, the one routed by Traefik.
+# It also terminates TLS for the server side of Shelf, inside the pod, and
+# serves the e-mail templates of Supabase Auth on a loopback-only listener.
+# Neither of these two listeners is published outside the pod.
+#
+
+[Unit]
+Description=Podman gateway-app.service
+BindsTo=shelf.service
+After=shelf.service
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%S/state/environment
+WorkingDirectory=%S/state
+Restart=always
+TimeoutStopSec=70
+ExecStartPre=/bin/rm -f %t/gateway-app.pid %t/gateway-app.ctr-id
+ExecStart=/usr/bin/podman run --conmon-pidfile %t/gateway-app.pid \
+    --cidfile %t/gateway-app.ctr-id --cgroups=no-conmon \
+    --pod-id-file %t/shelf.pod-id --replace -d --name gateway-app \
+    --volume %S/state/gateway:/etc/nginx/conf.d:ro,Z \
+    --volume %S/state/internal-tls:/etc/nginx/tls:ro,z \
+    ${NGINX_IMAGE}
+ExecStop=/usr/bin/podman stop --ignore --cidfile %t/gateway-app.ctr-id -t 10
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/gateway-app.ctr-id
+SyslogIdentifier=%u
+PIDFile=%t/gateway-app.pid
+Type=forking
+
+[Install]
+WantedBy=default.target

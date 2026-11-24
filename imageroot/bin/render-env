@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2023 Nethesis S.r.l.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# Generate the private env files read by the containers of the module, and
+# refresh the nginx gateway configuration. It runs before the pod starts
+# (ExecStartPre of shelf.service) and when the smarthost changes.
+#
+# Inputs:
+#   - state/environment      non-secret settings, set by configure-module
+#   - state/passwords.env    secrets generated once by create-module
+#   - state/settings.env     optional secret settings (MapTiler token)
+#   - Redis                  the smarthost, discovered at every start
+#
+# Outputs, all with mode 0600, replaced atomically:
+#   state/postgres.env state/gotrue.env state/storage.env state/shelf.env
+#   state/gateway/          nginx configuration and e-mail templates
+#
+# Secrets are written to files only: they are never put in a command line.
+#
+
+import os
+import shutil
+import subprocess
+import sys
+
+import agent
+
+OUTPUT_FILES = ["postgres.env", "gotrue.env", "storage.env", "shelf.env"]
+
+home = os.path.expanduser("~")
+state_dir = os.environ.get("AGENT_STATE_DIR") or os.path.join(home, ".config", "state")
+install_dir = os.environ.get("AGENT_INSTALL_DIR") or os.path.join(home, ".config")
+os.umask(0o077)
+
+
+def read_envfile(name):
+    values = {}
+    path = os.path.join(state_dir, name)
+    try:
+        with open(path) as fp:
+            for line in fp:
+                line = line.rstrip("\n")
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                values[key] = value
+    except FileNotFoundError:
+        pass
+    return values
+
+
+def write_private(name, values):
+    for key, value in values.items():
+        # An env file is line based
+        if "\n" in value or "\r" in value:
+            print(agent.SD_ERR + f"Refusing multi-line value for {key}", file=sys.stderr)
+            sys.exit(2)
+    path = os.path.join(state_dir, name)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fp:
+        for key, value in values.items():
+            fp.write(f"{key}={value}\n")
+    os.replace(tmp, path)
+
+
+def ensure_internal_tls(host):
+    """Self-signed certificate for the listener of the gateway that only the
+    containers of the pod reach, see etc/gateway/default.conf. It is trusted
+    by the Shelf container and regenerated when the host name changes."""
+    tls_dir = os.path.join(state_dir, "internal-tls")
+    os.makedirs(tls_dir, mode=0o755, exist_ok=True)
+    os.chmod(tls_dir, 0o755)
+    marker = os.path.join(tls_dir, "host")
+    crt = os.path.join(tls_dir, "server.crt")
+    key = os.path.join(tls_dir, "server.key")
+    try:
+        with open(marker) as fp:
+            current = fp.read().strip()
+    except FileNotFoundError:
+        current = ""
+    if current == host and os.path.exists(crt) and os.path.exists(key):
+        return
+    subprocess.run([
+        "openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
+        "-nodes", "-days", "3650", "-subj", f"/CN={host}", "-addext", f"subjectAltName=DNS:{host}",
+        "-keyout", key + ".tmp", "-out", crt + ".tmp",
+    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    os.chmod(key + ".tmp", 0o600)
+    # The certificate is public: the other containers must be able to read it
+    os.chmod(crt + ".tmp", 0o644)
+    os.replace(key + ".tmp", key)
+    os.replace(crt + ".tmp", crt)
+    with open(marker, "w") as fp:
+        fp.write(host + "\n")
+
+
+def discover_smarthost():
+    rdb = agent.redis_connect(use_replica=True)
+    return agent.get_smarthost_settings(rdb)
+
+
+def main():
+    host = os.environ.get("TRAEFIK_HOST", "")
+    if not host:
+        print(agent.SD_ERR + "TRAEFIK_HOST is not set: the module is not configured yet", file=sys.stderr)
+        sys.exit(2)
+    pw = read_envfile("passwords.env")
+    for key in ("POSTGRES_PASSWORD", "AUTH_DB_PASSWORD", "STORAGE_DB_PASSWORD", "JWT_SECRET",
+               "ANON_KEY", "SERVICE_ROLE_KEY", "SESSION_SECRET", "INVITE_TOKEN_SECRET"):
+        if not pw.get(key):
+            print(agent.SD_ERR + f"{key} is missing from passwords.env", file=sys.stderr)
+            sys.exit(2)
+    settings = read_envfile("settings.env")
+
+    try:
+        smtp = discover_smarthost()
+    except Exception as ex:
+        if all(os.path.exists(os.path.join(state_dir, name)) for name in OUTPUT_FILES):
+            print(agent.SD_WARNING + f"Smarthost discovery failed, keeping the previous settings: {ex}", file=sys.stderr)
+            smtp = None
+        else:
+            raise
+
+    ensure_internal_tls(host)
+    server_url = f"https://{host}"
+    mail_from = os.environ.get("SHELF_MAIL_FROM", "") or f"noreply@{host}"
+    disable_signup = os.environ.get("SHELF_DISABLE_SIGNUP", "false").lower() == "true"
+
+    if smtp is not None:
+        smtp_enabled = bool(smtp.get("enabled")) and bool(smtp.get("host"))
+        smtp_host = str(smtp["host"]) if smtp_enabled else "127.0.0.1"
+        smtp_port = str(smtp.get("port") or 25) if smtp_enabled else "25"
+        smtp_user = str(smtp.get("username") or "") if smtp_enabled else ""
+        smtp_pass = str(smtp.get("password") or "") if smtp_enabled else ""
+        if not smtp_enabled:
+            print(agent.SD_WARNING + "The smarthost is not enabled: Shelf cannot send the sign-in codes by e-mail", file=sys.stderr)
+    else:
+        # Reuse the values already rendered
+        old = read_envfile("shelf.env")
+        smtp_host = old.get("SMTP_HOST", "127.0.0.1")
+        smtp_port = old.get("SMTP_PORT", "25")
+        smtp_user = old.get("SMTP_USER", "")
+        smtp_pass = old.get("SMTP_PWD", "")
+
+    db_name = "shelf"
+    db_url_app = f"postgresql://postgres:{pw['POSTGRES_PASSWORD']}@127.0.0.1:5432/{db_name}"
+
+    write_private("postgres.env", {
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_DB": db_name,
+        "POSTGRES_PASSWORD": pw["POSTGRES_PASSWORD"],
+        "AUTH_DB_PASSWORD": pw["AUTH_DB_PASSWORD"],
+        "STORAGE_DB_PASSWORD": pw["STORAGE_DB_PASSWORD"],
+    })
+
+    mail_template_url = "http://127.0.0.1:8001/mail"
+    write_private("gotrue.env", {
+        "GOTRUE_API_HOST": "0.0.0.0",
+        "GOTRUE_API_PORT": "9999",
+        "API_EXTERNAL_URL": f"{server_url}/auth/v1",
+        "GOTRUE_DB_DRIVER": "postgres",
+        "GOTRUE_DB_DATABASE_URL": f"postgres://supabase_auth_admin:{pw['AUTH_DB_PASSWORD']}@127.0.0.1:5432/{db_name}",
+        "GOTRUE_SITE_URL": server_url,
+        "GOTRUE_URI_ALLOW_LIST": f"{server_url}/**",
+        # Sign-up policy is enforced by Shelf (DISABLE_SIGNUP), invitations
+        # and other administrative flows use the admin API
+        "GOTRUE_DISABLE_SIGNUP": "false",
+        "GOTRUE_JWT_ADMIN_ROLES": "service_role",
+        "GOTRUE_JWT_AUD": "authenticated",
+        "GOTRUE_JWT_DEFAULT_GROUP_NAME": "authenticated",
+        "GOTRUE_JWT_EXP": "3600",
+        "GOTRUE_JWT_SECRET": pw["JWT_SECRET"],
+        "GOTRUE_JWT_ISSUER": f"{server_url}/auth/v1",
+        "GOTRUE_EXTERNAL_EMAIL_ENABLED": "true",
+        "GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED": "false",
+        "GOTRUE_EXTERNAL_PHONE_ENABLED": "false",
+        "GOTRUE_MAILER_AUTOCONFIRM": "false",
+        # Shelf accepts 6-digit codes only
+        "GOTRUE_MAILER_OTP_LENGTH": "6",
+        "GOTRUE_SMTP_ADMIN_EMAIL": mail_from,
+        "GOTRUE_SMTP_SENDER_NAME": "Shelf",
+        "GOTRUE_SMTP_HOST": smtp_host,
+        "GOTRUE_SMTP_PORT": smtp_port,
+        "GOTRUE_SMTP_USER": smtp_user,
+        "GOTRUE_SMTP_PASS": smtp_pass,
+        "GOTRUE_MAILER_TEMPLATES_CONFIRMATION": f"{mail_template_url}/confirmation.html",
+        "GOTRUE_MAILER_TEMPLATES_MAGIC_LINK": f"{mail_template_url}/magic_link.html",
+        "GOTRUE_MAILER_TEMPLATES_RECOVERY": f"{mail_template_url}/recovery.html",
+        "GOTRUE_MAILER_TEMPLATES_INVITE": f"{mail_template_url}/invite.html",
+        "GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE": f"{mail_template_url}/email_change.html",
+        "GOTRUE_MAILER_TEMPLATES_REAUTHENTICATION": f"{mail_template_url}/reauthentication.html",
+    })
+
+    write_private("storage.env", {
+        "ANON_KEY": pw["ANON_KEY"],
+        "SERVICE_KEY": pw["SERVICE_ROLE_KEY"],
+        "AUTH_JWT_SECRET": pw["JWT_SECRET"],
+        "DATABASE_URL": f"postgres://supabase_storage_admin:{pw['STORAGE_DB_PASSWORD']}@127.0.0.1:5432/{db_name}",
+        "SERVER_PORT": "5000",
+        "STORAGE_PUBLIC_URL": server_url,
+        "REQUEST_ALLOW_X_FORWARDED_PATH": "true",
+        "FILE_SIZE_LIMIT": "52428800",
+        "STORAGE_BACKEND": "file",
+        "GLOBAL_S3_BUCKET": "shelf",
+        "FILE_STORAGE_BACKEND_PATH": "/var/lib/storage",
+        "TENANT_ID": "shelf",
+        "REGION": "local",
+        "ENABLE_IMAGE_TRANSFORMATION": "false",
+    })
+
+    shelf_env = {
+        "NODE_ENV": "production",
+        "TZ": "UTC",
+        "DATABASE_URL": db_url_app,
+        "DIRECT_URL": db_url_app,
+        "SUPABASE_URL": server_url,
+        "SUPABASE_ANON_PUBLIC": pw["ANON_KEY"],
+        "SUPABASE_SECRET_KEY": pw["SERVICE_ROLE_KEY"],
+        "SERVER_URL": server_url,
+        "SESSION_SECRET": pw["SESSION_SECRET"],
+        "INVITE_TOKEN_SECRET": pw["INVITE_TOKEN_SECRET"],
+        # One proxy, Traefik, sets X-Forwarded-For
+        "TRUSTED_PROXY_HOPS": "1",
+        "DISABLE_SIGNUP": "true" if disable_signup else "false",
+        "SMTP_HOST": smtp_host,
+        "SMTP_PORT": smtp_port,
+        "SMTP_USER": smtp_user,
+        "SMTP_PWD": smtp_pass,
+        "SMTP_FROM": f'"Shelf" <{mail_from}>',
+        # Shelf refuses to start without a MapTiler token. It is only used
+        # to draw maps.
+        "MAPTILER_TOKEN": settings.get("MAPTILER_TOKEN") or "not-configured",
+    }
+    write_private("shelf.env", shelf_env)
+
+    # nginx gateway: configuration and e-mail templates come from the module image
+    gateway_src = os.path.join(install_dir, "etc", "gateway")
+    gateway_dst = os.path.join(state_dir, "gateway")
+    tmp_dst = gateway_dst + f".{os.getpid()}.tmp"
+    shutil.rmtree(tmp_dst, ignore_errors=True)
+    shutil.copytree(gateway_src, tmp_dst)
+    # readable by the nginx user inside the container
+    os.chmod(tmp_dst, 0o755)
+    os.chmod(os.path.join(tmp_dst, "mail"), 0o755)
+    for root, _dirs, files in os.walk(tmp_dst):
+        for name in files:
+            os.chmod(os.path.join(root, name), 0o644)
+    old_dst = gateway_dst + f".{os.getpid()}.old"
+    if os.path.exists(gateway_dst):
+        os.rename(gateway_dst, old_dst)
+    os.rename(tmp_dst, gateway_dst)
+    shutil.rmtree(old_dst, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()

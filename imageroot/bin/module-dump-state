@@ -5,7 +5,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-set -e
+# Runs in the state directory before every backup. The dump holds the Shelf
+# data and the Supabase Auth and Storage metadata, in one consistent snapshot.
 
-echo "Dumping kickstart postgres database"
-podman exec postgresql-app pg_dump -U postgres --format=c  kickstart > kickstart.pg_dump
+set -e
+umask 077
+cd "${AGENT_STATE_DIR:-.}"
+
+if [ -z "${TRAEFIK_HOST:-}" ]; then
+    # Never configured: there is no database yet. Leave an empty marker so the
+    # backup is complete and a restore can tell what happened.
+    echo "Module not configured, no database to dump"
+    : > shelf.pg_dump
+    exit 0
+fi
+
+echo "Dumping the Shelf database"
+podman exec postgres-app pg_dump -U postgres --format=c shelf > shelf.pg_dump.tmp
+mv shelf.pg_dump.tmp shelf.pg_dump

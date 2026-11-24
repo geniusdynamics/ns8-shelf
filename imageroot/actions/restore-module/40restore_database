@@ -5,20 +5,46 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-set -e -o pipefail
-exec 1>&2 # Redirect any output to the journal (stderr)
+#
+# Load the database dump saved by bin/module-dump-state into a new PostgreSQL
+# data directory. Roles come from etc/db-roles.sql, schemas and data from the
+# dump. Runs in the state directory, after Restic restored shelf.pg_dump and
+# passwords.env.
+#
 
-mkdir -vp restore
-cat - >restore/kickstart_restore.sh <<'EOS'
-# Read dump file from standard input:
-pg_restore --no-owner --no-privileges -U postgres -d kickstart
-ec=$?
+set -e -o pipefail
+exec 1>&2
+
+if [ ! -s shelf.pg_dump ]; then
+    echo "The backup contains no database dump: the module was not configured when it was saved" 
+    exit 1
+fi
+
+# The entrypoint of the image initializes a data directory, and runs the
+# restore scripts, only if it is empty. Never restore over existing data.
+if ! podman run --rm --network=none --entrypoint sh \
+        --volume postgres-data:/var/lib/postgresql/data:Z \
+        "${POSTGRES_IMAGE}" -c 'test -z "$(ls -A /var/lib/postgresql/data)"'; then
+    echo "The postgres-data volume is not empty: refusing to restore over it"
+    exit 1
+fi
+
+rm -rf restore
+# The entrypoint reads this directory as the postgres user: keep it world readable
+umask 022
+mkdir -p restore
+# Only the database passwords are needed by the ephemeral container. The file
+# is read by podman on the host, not by the container: keep it private.
+(umask 077; grep -E '^(POSTGRES_PASSWORD|AUTH_DB_PASSWORD|STORAGE_DB_PASSWORD)=' passwords.env > restore/postgres.env)
+cp "${AGENT_INSTALL_DIR:-${HOME}/.config}/etc/db-roles.sql" restore/10-roles.sql
+# The entrypoint executes the *.sql files first (roles), then sources the
+# *.sh file (restore). The dump is read from standard input.
+cat - >restore/20-restore.sh <<'EOS'
+ec=0
+pg_restore --exit-on-error --single-transaction -U "$POSTGRES_USER" -d "$POSTGRES_DB" || ec=$?
 docker_temp_server_stop
 exit $ec
 EOS
-
-# Override the image /docker-entrypoint-initdb.d contents, to restore the
-# DB dump file. The container will be stopped at the end
 
 podman run \
     --rm \
@@ -27,11 +53,11 @@ podman run \
     --volume=./restore:/docker-entrypoint-initdb.d/:Z \
     --volume=postgres-data:/var/lib/postgresql/data:Z \
     --replace --name=restore_db \
+    --env-file=restore/postgres.env \
     --env POSTGRES_USER=postgres \
-    --env POSTGRES_PASSWORD=Nethesis,1234 \
-    --env POSTGRES_DB=kickstart \
+    --env POSTGRES_DB=shelf \
     --env TZ=UTC \
-    "${POSTGRES_IMAGE}" < kickstart.pg_dump
+    "${POSTGRES_IMAGE}" < shelf.pg_dump
 
 # If the restore is successful, clean up:
-rm -rfv restore/ kickstart.pg_dump
+rm -rfv restore/ shelf.pg_dump

@@ -9,9 +9,7 @@ set -e
 # Redirect any output to the journal (stderr)
 exec 1>&2
 
-# If the control reaches this step, the service can be enabled and started
-
-touch smarthost.env
-
-systemctl --user enable kickstart.service
-systemctl --user restart kickstart.service
+# If the control reaches this step, the services can be enabled and started.
+# List every service: restarting the pod does not restart its children.
+systemctl --user enable shelf.service
+systemctl --user restart shelf.service postgres-app.service gateway-app.service gotrue-app.service storage-app.service shelf-app.service

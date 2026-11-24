@@ -5,4 +5,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-rm -vf kickstart.pg_dump
+cd "${AGENT_STATE_DIR:-.}"
+rm -vf shelf.pg_dump shelf.pg_dump.tmp

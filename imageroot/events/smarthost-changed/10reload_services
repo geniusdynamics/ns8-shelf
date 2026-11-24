@@ -5,6 +5,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-set -e
+# Shelf and Supabase Auth send e-mail through the cluster smarthost: refresh
+# their env files, then restart them if they are running.
 
-systemctl --user try-reload-or-restart kickstart.service
+set -e
+exec 1>&2
+
+# Nothing to do until the module is configured
+[ -n "${TRAEFIK_HOST:-}" ] || exit 0
+
+"${AGENT_INSTALL_DIR:-${HOME}/.config}/bin/render-env"
+systemctl --user try-restart gotrue-app.service shelf-app.service

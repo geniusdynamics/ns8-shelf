@@ -13,10 +13,14 @@ request = json.load(sys.stdin)
 
 original_environment = request['environment']
 
+# TRAEFIK_HOST is set only if the module had been configured. Without it
+# the backup has no database: restore-module/40restore_database refuses it.
 for evar in [
         "TRAEFIK_HOST",
-        "TRAEFIK_HTTP2HTTPS",
+        "SHELF_DISABLE_SIGNUP",
+        "SHELF_MAIL_FROM",
     ]:
-    agent.set_env(evar, original_environment[evar])
+    if evar in original_environment:
+        agent.set_env(evar, original_environment[evar])
 
 agent.dump_env()

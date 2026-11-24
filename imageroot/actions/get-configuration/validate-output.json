@@ -1,36 +1,55 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Get kickstart settings",
-    "$id": "http://nethserver.org/json-schema/task/input/kickstart/get-configuration",
-    "description": "Get kickstart settings",
+    "title": "Get Shelf settings",
+    "$id": "http://nethserver.org/json-schema/task/output/shelf/get-configuration",
+    "description": "Get Shelf settings. Secrets are never returned.",
     "examples": [
         {
-            "host": "kickstart.domain.org",
-            "http2https": true,
-            "lets_encrypt": true
+            "host": "shelf.domain.org",
+            "lets_encrypt": true,
+            "disable_signup": false,
+            "mail_from": "",
+            "maptiler_token_set": false,
+            "smarthost_enabled": true
         }
     ],
     "type": "object",
     "required": [
         "host",
-        "http2https",
-        "lets_encrypt"
+        "lets_encrypt",
+        "disable_signup",
+        "mail_from",
+        "maptiler_token_set",
+        "smarthost_enabled"
     ],
     "properties": {
         "host": {
             "type": "string",
-            "description": "Host name for the application, like 'kickstart.domain.org'",
-            "format": "idn-hostname"
+            "description": "Host name for the application, like 'shelf.domain.org'. Empty if not configured yet."
         },
         "lets_encrypt": {
             "type": "boolean",
             "title": "Let's Encrypt certificate",
-            "description": "Request a valid Let's Encrypt certificate."
+            "description": "A valid Let's Encrypt certificate is requested."
         },
-        "http2https": {
+        "disable_signup": {
             "type": "boolean",
-            "title": "HTTP to HTTPS redirection",
-            "description": "Redirect all the HTTP requests to HTTPS"
+            "title": "Self-service sign-up is disabled"
+        },
+        "mail_from": {
+            "type": "string",
+            "title": "Sender e-mail address",
+            "description": "Empty means noreply@<host>."
+        },
+        "maptiler_token_set": {
+            "type": "boolean",
+            "title": "A MapTiler API key is configured",
+            "description": "The key itself is never returned."
+        },
+        "smarthost_enabled": {
+            "type": "boolean",
+            "title": "The cluster smarthost is enabled",
+            "description": "Shelf sends the sign-in codes through it. Without it nobody can sign in."
         }
     }
 }

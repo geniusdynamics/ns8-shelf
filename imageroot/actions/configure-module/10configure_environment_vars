@@ -6,35 +6,31 @@
 #
 
 import json
+import os
 import sys
 import agent
 
-# Try to parse the stdin as JSON.
-# If parsing fails, output everything to stderr
 data = json.load(sys.stdin)
-# Setup default values
-host = data.get("host")
-h2hs = data.get("http2https", True)
 
-agent.set_env("TRAEFIK_HOST", host)
-agent.set_env("TRAEFIK_HTTP2HTTPS", h2hs)
+# Non-secret settings go to the module environment. The containers' env
+# files are generated from them by bin/render-env when the services start.
+agent.set_env("TRAEFIK_HOST", data["host"])
+if "disable_signup" in data:
+    agent.set_env("SHELF_DISABLE_SIGNUP", "true" if data["disable_signup"] else "false")
+if "mail_from" in data:
+    agent.set_env("SHELF_MAIL_FROM", data["mail_from"])
 
+# The MapTiler token is kept in a private file, not in the environment,
+# which is stored in Redis and readable by the other modules of the node.
+# Not sent: keep the current token. Empty: remove it.
+if "maptiler_token" in data:
+    path = os.path.join(os.environ["AGENT_STATE_DIR"], "settings.env")
+    os.umask(0o077)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fp:
+        if data["maptiler_token"]:
+            fp.write(f"MAPTILER_TOKEN={data['maptiler_token']}\n")
+    os.replace(tmp, path)
 
-#This is specific to you module, so you need to change it accordingly.
-# we read a json stdin {"vars1":true, "var2":"foo", "vars3": 3} and we writ it to .config/state/environment
-# Upper case to set environment variable and minor case to read from stdin
-
-# this values must exists in the json stdin
-# agent.set_env("MAIL_SERVER", data["mail_server"])
-# agent.set_env("LDAP_DOMAIN", data["ldap_domain"])
-
-# you can add default values for the following variables
-# agent.set_env("MAIL_DOMAIN",data.get("mail_domain",""))
-# agent.set_env("WOWORKERSCOUNT",data.get("workers_count",3))
-# agent.set_env("AUXILIARYACCOUNT",data.get("auxiliary_account",True))
-# agent.set_env("ACTIVESYNC",data.get("activesync",False))
-
-
-# Make sure everything is saved inside the environment file
-# just before starting systemd unit
-#agent.dump_env()
+agent.dump_env()

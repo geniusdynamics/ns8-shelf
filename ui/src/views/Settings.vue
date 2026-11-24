@@ -23,16 +23,16 @@
       <cv-column>
         <cv-tile light>
           <cv-form @submit.prevent="configureModule">
-            <cv-text-input
-              :label="$t('settings.kickstart_fqdn')"
-              placeholder="kickstart.example.org"
+            <NsTextInput
+              :label="$t('settings.shelf_fqdn')"
+              placeholder="shelf.example.org"
               v-model.trim="host"
               class="mg-bottom"
               :invalid-message="$t(error.host)"
-              :disabled="loading.getConfiguration || loading.configureModule"
+              :disabled="stillLoading"
               ref="host"
             >
-            </cv-text-input>
+            </NsTextInput>
             <NsToggle
               value="letsEncrypt"
               :label="core.$t('apps_lets_encrypt.request_https_certificate')"
@@ -80,25 +80,71 @@
                 />
               </cv-column>
             </cv-row>
-            <cv-toggle
-              value="httpToHttps"
-              :label="$t('settings.http_to_https')"
-              v-model="isHttpToHttpsEnabled"
-              :disabled="loading.getConfiguration || loading.configureModule"
+            <NsToggle
+              value="disableSignup"
+              :label="$t('settings.disable_signup')"
+              v-model="isSignupDisabled"
+              :disabled="stillLoading"
               class="mg-bottom"
             >
+              <template #tooltip>
+                {{ $t("settings.disable_signup_tooltip") }}
+              </template>
               <template slot="text-left">{{
                 $t("settings.disabled")
               }}</template>
               <template slot="text-right">{{
                 $t("settings.enabled")
               }}</template>
-            </cv-toggle>
+            </NsToggle>
+            <NsInlineNotification
+              v-if="!isSmarthostEnabled && !loading.getConfiguration"
+              kind="warning"
+              :title="$t('settings.smarthost_disabled_title')"
+              :description="$t('settings.smarthost_disabled_description')"
+              :showCloseButton="false"
+            />
             <!-- advanced options -->
             <cv-accordion ref="accordion" class="maxwidth mg-bottom">
               <cv-accordion-item :open="toggleAccordion[0]">
                 <template slot="title">{{ $t("settings.advanced") }}</template>
-                <template slot="content"> </template>
+                <template slot="content">
+                  <NsTextInput
+                    :label="$t('settings.mail_from')"
+                    :helper-text="$t('settings.mail_from_helper')"
+                    placeholder="shelf@example.org"
+                    v-model.trim="mailFrom"
+                    class="mg-bottom"
+                    :invalid-message="$t(error.mail_from)"
+                    :disabled="stillLoading"
+                    ref="mail_from"
+                  >
+                  </NsTextInput>
+                  <NsTextInput
+                    type="password"
+                    :label="$t('settings.maptiler_token')"
+                    :helper-text="
+                      isMaptilerTokenSet
+                        ? $t('settings.maptiler_token_set_helper')
+                        : $t('settings.maptiler_token_helper')
+                    "
+                    v-model.trim="maptilerToken"
+                    class="mg-bottom"
+                    :invalid-message="$t(error.maptiler_token)"
+                    :disabled="stillLoading || removeMaptilerToken"
+                    autocomplete="new-password"
+                    ref="maptiler_token"
+                  >
+                  </NsTextInput>
+                  <NsCheckbox
+                    v-if="isMaptilerTokenSet"
+                    :label="$t('settings.remove_maptiler_token')"
+                    v-model="removeMaptilerToken"
+                    :disabled="stillLoading"
+                    value="removeMaptilerToken"
+                    class="mg-bottom"
+                  />
+                </template>
               </cv-accordion-item>
             </cv-accordion>
             <cv-row v-if="error.configureModule">
@@ -191,7 +237,13 @@ export default {
       host: "",
       isLetsEncryptEnabled: false,
       isLetsEncryptCurrentlyEnabled: false,
-      isHttpToHttpsEnabled: true,
+      isSignupDisabled: false,
+      mailFrom: "",
+      maptilerToken: "",
+      isMaptilerTokenSet: false,
+      removeMaptilerToken: false,
+      isSmarthostEnabled: true,
+      toggleAccordion: [false],
       loading: {
         getConfiguration: false,
         configureModule: false,
@@ -202,8 +254,9 @@ export default {
         configureModule: "",
         host: "",
         lets_encrypt: "",
-        http2https: "",
-        getStatus: false,
+        mail_from: "",
+        maptiler_token: "",
+        getStatus: "",
       },
     };
   },
@@ -324,7 +377,13 @@ export default {
       this.host = config.host;
       this.isLetsEncryptEnabled = config.lets_encrypt;
       this.isLetsEncryptCurrentlyEnabled = config.lets_encrypt;
-      this.isHttpToHttpsEnabled = config.http2https;
+      this.isSignupDisabled = config.disable_signup;
+      this.mailFrom = config.mail_from;
+      this.isMaptilerTokenSet = config.maptiler_token_set;
+      this.isSmarthostEnabled = config.smarthost_enabled;
+      // never keep a typed secret around after a save
+      this.maptilerToken = "";
+      this.removeMaptilerToken = false;
 
       this.loading.getConfiguration = false;
       this.focusElement("host");
@@ -364,9 +423,22 @@ export default {
         }
       }
     },
+    buildConfigureModuleData() {
+      const data = {
+        host: this.host,
+        lets_encrypt: this.isLetsEncryptEnabled,
+        disable_signup: this.isSignupDisabled,
+        mail_from: this.mailFrom,
+      };
+      // An empty value keeps the current key: send it only to set or remove it
+      if (this.removeMaptilerToken) {
+        data.maptiler_token = "";
+      } else if (this.maptilerToken) {
+        data.maptiler_token = this.maptilerToken;
+      }
+      return data;
+    },
     async configureModule() {
-      this.error.test_imap = false;
-      this.error.test_smtp = false;
       const isValidationOk = this.validateConfigureModule();
       if (!isValidationOk) {
         return;
@@ -396,11 +468,7 @@ export default {
       const res = await to(
         this.createModuleTaskForApp(this.instanceName, {
           action: taskAction,
-          data: {
-            host: this.host,
-            lets_encrypt: this.isLetsEncryptEnabled,
-            http2https: this.isHttpToHttpsEnabled,
-          },
+          data: this.buildConfigureModuleData(),
           extra: {
             title: this.$t("settings.instance_configuration", {
               instance: this.instanceName,

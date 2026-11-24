@@ -1,7 +1,6 @@
 {
   "common": {
     "required": "Required",
-    "work_in_progress": "Work in progress",
     "processing": "Processing..."
   },
   "status": {
@@ -19,26 +18,39 @@
     "no_services": "No services",
     "no_images": "No images",
     "no_volumes": "No volumes",
-    "kickstart_webapp": "kickstart webapp",
     "not_configured": "Not configured",
-    "open_webapp": "Open kickstart",
-    "configure": "Configure"
+    "open_webapp": "Open Shelf",
+    "configure": "Configure",
+    "shelf_webapp": "Shelf web app",
+    "smarthost_disabled_title": "Outgoing mail is not configured",
+    "smarthost_disabled_description": "Shelf signs users in with one-time codes sent by e-mail. Configure and enable the cluster smarthost, otherwise nobody can sign in or receive invitations."
   },
   "settings": {
     "title": "Settings",
     "configure_instance": "Configure {instance}",
     "save": "Save",
-    "kickstart_fqdn": "kickstart hostname (FQDN)",
     "lets_encrypt": "Request LE Certificate",
-    "http_to_https": "Force HTTPS",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "advanced": "Advanced",
     "configuring": "Configuring",
-    "instance_configuration": "Configure kickstart",
     "domain_already_used_in_traefik": "Domain already used in traefik",
     "host_pattern": "Must be a valid fully qualified domain name",
-    "host_format": "Must be a valid fully qualified domain name"
+    "host_format": "Must be a valid fully qualified domain name",
+    "shelf_fqdn": "Shelf hostname (FQDN)",
+    "instance_configuration": "Configure Shelf",
+    "disable_signup": "Disable self-service sign-up",
+    "disable_signup_tooltip": "When enabled, nobody can create an account by signing up: new users can only join by invitation.",
+    "smarthost_disabled_title": "Outgoing mail is not configured",
+    "smarthost_disabled_description": "Shelf signs users in with one-time codes sent by e-mail. Configure and enable the cluster smarthost, otherwise nobody can sign in.",
+    "mail_from": "Sender e-mail address",
+    "mail_from_helper": "Sender of the e-mails sent by Shelf. Leave empty to use noreply@ followed by the hostname.",
+    "maptiler_token": "MapTiler API key",
+    "maptiler_token_helper": "Optional. Shelf uses it to draw maps.",
+    "maptiler_token_set_helper": "A key is saved. Leave empty to keep it, or type a new one to replace it.",
+    "remove_maptiler_token": "Remove the saved MapTiler API key",
+    "mail_from_invalid": "Must be a valid e-mail address",
+    "maptiler_token_invalid": "Must contain only letters, digits and . _ ~ + / = -"
   },
   "about": {
     "title": "About"

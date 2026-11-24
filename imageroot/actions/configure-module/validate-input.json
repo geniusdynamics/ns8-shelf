@@ -1,13 +1,15 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Configure kickstart",
-    "$id": "http://nethserver.org/json-schema/task/input/kickstart/configure-module",
-    "description": "Configure kickstart",
+    "title": "Configure Shelf",
+    "$id": "http://nethserver.org/json-schema/task/input/shelf/configure-module",
+    "description": "Configure Shelf. Optional properties that are not sent keep their current value.",
     "examples": [
         {
-            "host": "kickstart.domain.org",
-            "http2https": true,
-            "lets_encrypt": true
+            "host": "shelf.domain.org",
+            "lets_encrypt": true,
+            "disable_signup": false,
+            "mail_from": "shelf@domain.org",
+            "maptiler_token": "abcDEF123"
         }
     ],
     "type": "object",
@@ -17,7 +19,7 @@
     "properties": {
         "host": {
             "type": "string",
-            "description": "Host name for the application, like 'kickstart.domain.org'",
+            "description": "Host name for the application, like 'shelf.domain.org'",
             "format": "hostname",
             "pattern": "\\."
         },
@@ -26,10 +28,22 @@
             "title": "Let's Encrypt certificate",
             "description": "Request a valid Let's Encrypt certificate."
         },
-        "http2https": {
+        "disable_signup": {
             "type": "boolean",
-            "title": "HTTP to HTTPS redirection",
-            "description": "Redirect all the HTTP requests to HTTPS"
+            "title": "Disable self-service sign-up",
+            "description": "When true, nobody can create an account by signing up: users can only join by invitation."
+        },
+        "mail_from": {
+            "type": "string",
+            "title": "Sender e-mail address",
+            "description": "Address used as sender of the e-mails sent by Shelf. Empty means noreply@<host>.",
+            "maxLength": 254
+        },
+        "maptiler_token": {
+            "type": "string",
+            "title": "MapTiler API key",
+            "description": "Optional API key to draw maps. Empty removes the current key.",
+            "maxLength": 200
         }
     }
 }

@@ -8,22 +8,33 @@
 import os
 import sys
 import json
+import re
 import agent
-import urllib.request
-import urllib.error
-import ssl
 
 agent.set_weight(os.path.basename(__file__), 0) # Validation step, no task progress at all
 
 # retrieve json data
 data = json.load(sys.stdin)
 
-# Setup default values
 host = data["host"]
-# do not test if it is the same host
-oldHost = os.environ.get('TRAEFIK_HOST','')
+errors = []
 
+# do not test if it is the same host
+oldHost = os.environ.get('TRAEFIK_HOST', '')
 if host != oldHost and agent.http_route_in_use(domain=host):
+    errors.append({'field': 'host', 'parameter': 'host', 'value': host, 'error': 'domain_already_used_in_traefik'})
+
+# The values below end up in env files, one per line: accept simple values only
+mail_from = data.get('mail_from', '')
+if mail_from and not re.fullmatch(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', mail_from):
+    errors.append({'field': 'mail_from', 'parameter': 'mail_from', 'value': mail_from, 'error': 'mail_from_invalid'})
+
+token = data.get('maptiler_token', '')
+if token and not re.fullmatch(r'[A-Za-z0-9._~+/=-]{1,200}', token):
+    # Do not echo the token back
+    errors.append({'field': 'maptiler_token', 'parameter': 'maptiler_token', 'value': '', 'error': 'maptiler_token_invalid'})
+
+if errors:
     agent.set_status('validation-failed')
-    json.dump([{'field':'host','parameter':'host','value':host,'error':'domain_already_used_in_traefik'}],fp=sys.stdout)
-    sys.exit(2)
+    json.dump(errors, fp=sys.stdout)
+    sys.exit(3)

@@ -6,7 +6,7 @@
 #
 
 #
-# Read configuration
+# Read configuration. Never returns secrets: only whether they are set.
 #
 
 import os
@@ -14,13 +14,31 @@ import sys
 import json
 import agent
 
-# Prepare return variable
 config = {}
 
-# Read current configuration from the environment file
-config["host"] = os.getenv("TRAEFIK_HOST","")
-config["http2https"] = os.getenv("TRAEFIK_HTTP2HTTPS") == "True"
-config["lets_encrypt"] = agent.get_route(os.environ['MODULE_ID']).get('lets_encrypt', False)
+config["host"] = os.getenv("TRAEFIK_HOST", "")
+config["disable_signup"] = os.getenv("SHELF_DISABLE_SIGNUP", "false").lower() == "true"
+config["mail_from"] = os.getenv("SHELF_MAIL_FROM", "")
 
-# Dump the configuration to stdout
+try:
+    config["lets_encrypt"] = bool(agent.get_route(os.environ['MODULE_ID']).get('lets_encrypt', False))
+except Exception as ex:
+    print(f"Cannot read the Traefik route: {ex}", file=sys.stderr)
+    config["lets_encrypt"] = False
+
+config["maptiler_token_set"] = False
+try:
+    with open(os.path.join(os.environ["AGENT_STATE_DIR"], "settings.env")) as fp:
+        config["maptiler_token_set"] = any(line.startswith("MAPTILER_TOKEN=") and len(line) > 15 for line in fp)
+except FileNotFoundError:
+    pass
+
+try:
+    rdb = agent.redis_connect(use_replica=True)
+    smarthost = agent.get_smarthost_settings(rdb)
+    config["smarthost_enabled"] = bool(smarthost.get("enabled")) and bool(smarthost.get("host"))
+except Exception as ex:
+    print(f"Cannot read the smarthost settings: {ex}", file=sys.stderr)
+    config["smarthost_enabled"] = False
+
 json.dump(config, fp=sys.stdout)
